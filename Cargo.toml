@@ -6,7 +6,7 @@ description = "A proc macro crate to generate a variety of test functions."
 repository = "https://github.com/rep-nop/testgen"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-keywords = ["test", "testing", "test generation"]
+keywords = ["test", "testing", "code_gen"]
 
 [lib]
 proc-macro = true
