@@ -1,6 +1,6 @@
 [package]
 name = "testgen"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["repnop <repnop@outlook.com>"]
 description = "A proc macro crate to generate a variety of test functions."
 repository = "https://github.com/rep-nop/testgen"
@@ -12,6 +12,6 @@ keywords = ["test", "testing", "code_gen"]
 proc-macro = true
 
 [dependencies]
-syn = { version = "0.15.18", features = ["full"] }
-quote = "0.6.9"
-proc-macro2 = { version = "0.4.20", features = ["nightly"] }
+syn = { version = "0.15.21", features = ["full"] }
+quote = "0.6.10"
+proc-macro2 = "0.4.24" 
