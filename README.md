@@ -1,5 +1,9 @@
 # `testgen`
 
+[![Build Status](https://travis-ci.org/rep-nop/testgen.svg?branch=master)](https://travis-ci.org/rep-nop/testgen)
+[![crates.io](https://img.shields.io/crates/v/testgen.svg)](https://crates.io/crates/testgen)
+[![Released API docs](https://docs.rs/testgen/badge.svg)](https://docs.rs/testgen)
+
 **This library is still very early in development!**
 
 Generate simple tests with `testgen`!
