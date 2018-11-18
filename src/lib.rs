@@ -1,24 +1,27 @@
+//! # `testgen`
 //! **This library is still very early in development!**
 //!
-//! As of this published (0.0.1) version, you can make very basic generated
-//! tests only on free functions by importing the `inplace_test` macro and using
-//! it like so:
+//! Generate simple tests with `testgen`!
+//!
+//! ## Examples
 //!
 //! ```rust
 //! extern crate testgen;
-//! use testgen::inplace_test;
+//! use testgen::{pass, multi_fail, multi_pass};
 //!
-//! #[inplace_test(optional_name, 1 => 2)]
+//! #[pass(name="optional", 1 => 2)]
+//! #[multi_fail(1 => 1, 2 => 2, 3 => 3)]
 //! fn add_one(n: i32) -> i32 {
 //!     n + 1
 //! }
 //!
+//! #[multi_pass((1, 2) => 3, (3, 4) => 7)]
+//! fn add(n: i32, m: i32) -> i32 {
+//!     n + m
+//! }
+//!
 //! fn main() {}
 //! ```
-//!
-//! The macro name and usage **will** change, so its recommended to wait for
-//! more progress to be made before considering using this outside of toy
-//! projects.
 
 extern crate proc_macro;
 extern crate proc_macro2;
