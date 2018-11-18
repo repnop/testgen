@@ -170,6 +170,7 @@ impl Parse for PassFailArgs {
 }
 
 /// Test for a single input => expected. Good for quick sanity checks.
+/// Optionally named.
 ///
 /// Can be used multiple times but only if each test has differing names.
 ///
@@ -212,8 +213,8 @@ pub fn pass(args: TokenStream, input: TokenStream) -> TokenStream {
     })
 }
 
-/// Test for a single input => is not expected. Good for quick reverse sanity
-/// checks.
+/// Test for a single input => is not expected. Good for quick sanity
+/// checks. Optionally named.
 ///
 /// Can be used multiple times but only if each test has differing names.
 ///
