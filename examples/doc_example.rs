@@ -1,3 +1,5 @@
+#![allow(warnings)]
+
 extern crate testgen;
 use testgen::{fail, multi_fail, multi_pass, pass};
 

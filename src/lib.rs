@@ -7,7 +7,7 @@
 //!
 //! ```rust
 //! extern crate testgen;
-//! use testgen::{pass, multi_fail, multi_pass};
+//! use testgen::{fail, multi_fail, multi_pass, pass};
 //!
 //! #[pass(name="optional", 1 => 2)]
 //! #[multi_fail(1 => 1, 2 => 2, 3 => 3)]
@@ -58,6 +58,7 @@ impl Parse for Args {
         let mut expected = None;
         let mut _should_fails = None;
 
+        // Parse `param_name = Item,`
         loop {
             let ident = input.parse::<Ident>()?;
 
@@ -168,6 +169,21 @@ impl Parse for PassFailArgs {
     }
 }
 
+/// Test for a single input => expected. Good for quick sanity checks.
+///
+/// Can be used multiple times but only if each test has differing names.
+///
+/// Example:
+/// ```rust
+/// # extern crate testgen;
+/// use testgen::pass;
+///
+/// #[pass(1 => 2)]
+/// #[pass(name="turbofish", 2 => 3)]
+/// fn add_one(n: i32) -> i32 {
+///     n + 1
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn pass(args: TokenStream, input: TokenStream) -> TokenStream {
     let PassFailArgs {
@@ -196,6 +212,22 @@ pub fn pass(args: TokenStream, input: TokenStream) -> TokenStream {
     })
 }
 
+/// Test for a single input => is not expected. Good for quick reverse sanity
+/// checks.
+///
+/// Can be used multiple times but only if each test has differing names.
+///
+/// Example:
+/// ```rust
+/// # extern crate testgen;
+/// use testgen::fail;
+///
+/// #[fail(1 => 1)]
+/// #[fail(name="oof", 1 => 6)]
+/// fn add_one(n: i32) -> i32 {
+///     n + 1
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn fail(args: TokenStream, input: TokenStream) -> TokenStream {
     let PassFailArgs {
@@ -258,6 +290,17 @@ impl Parse for MultiPassFailArgs {
     }
 }
 
+/// Generates multiple `assert_eq!`s that should all pass. Optionally named.
+///
+/// Example:
+/// ```rust
+/// # extern crate testgen;
+/// use testgen::multi_pass;
+/// #[multi_pass(1 => 2, 2 => 3, 3 => 4)]
+/// fn add_one(n: i32) -> i32 {
+///     n + 1
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn multi_pass(args: TokenStream, input: TokenStream) -> TokenStream {
     let MultiPassFailArgs { named, tests } = parse_macro_input!(args as MultiPassFailArgs);
@@ -294,6 +337,19 @@ pub fn multi_pass(args: TokenStream, input: TokenStream) -> TokenStream {
     })
 }
 
+/// Declares multiple `assert_eq!`s that should cause the function to panic.
+/// Optionally named.
+///
+/// Example:
+/// ```rust
+/// # extern crate testgen;
+/// use testgen::multi_fail;
+///
+/// #[multi_fail(1 => 1, 2 => 2, 3 => 3)]
+/// fn add_one(n: i32) -> i32 {
+///     n + 1
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn multi_fail(args: TokenStream, input: TokenStream) -> TokenStream {
     let MultiPassFailArgs { named, tests } = parse_macro_input!(args as MultiPassFailArgs);
