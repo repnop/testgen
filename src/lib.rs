@@ -187,30 +187,7 @@ impl Parse for PassFailArgs {
 /// ```
 #[proc_macro_attribute]
 pub fn pass(args: TokenStream, input: TokenStream) -> TokenStream {
-    let PassFailArgs {
-        named,
-        args,
-        expected,
-    } = parse_macro_input!(args as PassFailArgs);
-    let input = parse_macro_input!(input as ItemFn);
-
-    let fn_ident = input.ident.clone();
-    let test_name = named
-        .map(|named| Ident::new(&named.value(), Span::call_site()))
-        .unwrap_or_else(|| Ident::new(&format!("{}_test_pass", fn_ident), Span::call_site()));
-
-    let args = quote! {
-        #(#args,)*
-    };
-
-    TokenStream::from(quote! {
-        #input
-
-        #[test]
-        fn #test_name() {
-            assert_eq!(#fn_ident(#args), #expected);
-        }
-    })
+    single_codegen(args, input, true)
 }
 
 /// Test for a single input => is not expected. Good for quick sanity
@@ -231,6 +208,10 @@ pub fn pass(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn fail(args: TokenStream, input: TokenStream) -> TokenStream {
+    single_codegen(args, input, false)
+}
+
+fn single_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStream {
     let PassFailArgs {
         named,
         args,
@@ -241,19 +222,29 @@ pub fn fail(args: TokenStream, input: TokenStream) -> TokenStream {
     let fn_ident = input.ident.clone();
     let test_name = named
         .map(|named| Ident::new(&named.value(), Span::call_site()))
-        .unwrap_or_else(|| Ident::new(&format!("{}_test_fail", fn_ident), Span::call_site()));
+        .unwrap_or_else(|| {
+            Ident::new(
+                &format!("{}_test_{}", fn_ident, if pass { "pass" } else { "fail" }),
+                Span::call_site(),
+            )
+        });
 
     let args = quote! {
         #(#args,)*
+    };
+
+    let assert_type = if pass {
+        quote! { assert_eq }
+    } else {
+        quote! { assert_ne }
     };
 
     TokenStream::from(quote! {
         #input
 
         #[test]
-        #[should_panic]
         fn #test_name() {
-            assert_eq!(#fn_ident(#args), #expected);
+            #assert_type!(#fn_ident(#args), #expected);
         }
     })
 }
@@ -304,38 +295,7 @@ impl Parse for MultiPassFailArgs {
 /// ```
 #[proc_macro_attribute]
 pub fn multi_pass(args: TokenStream, input: TokenStream) -> TokenStream {
-    let MultiPassFailArgs { named, tests } = parse_macro_input!(args as MultiPassFailArgs);
-    let input = parse_macro_input!(input as ItemFn);
-
-    let fn_ident = input.ident.clone();
-    let test_name = named
-        .map(|named| Ident::new(&named.value(), Span::call_site()))
-        .unwrap_or_else(|| Ident::new(&format!("{}_multitest_pass", fn_ident), Span::call_site()));
-
-    let args = tests.iter().map(|PassFailArgs { args, .. }| {
-        quote! {
-            #(#args,)*
-        }
-    });
-
-    let expecteds = tests.iter().map(|PassFailArgs { expected, .. }| {
-        quote!{
-            #expected
-        }
-    });
-
-    let fn_ident = &[fn_ident];
-
-    TokenStream::from(quote! {
-        #input
-
-        #[test]
-        fn #test_name() {
-            #(
-                assert_eq!(#fn_ident(#args), #expecteds);
-            )*
-        }
-    })
+    multi_codegen(args, input, true)
 }
 
 /// Declares multiple `assert_eq!`s that should cause the function to panic.
@@ -353,13 +313,26 @@ pub fn multi_pass(args: TokenStream, input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn multi_fail(args: TokenStream, input: TokenStream) -> TokenStream {
+    multi_codegen(args, input, false)
+}
+
+fn multi_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStream {
     let MultiPassFailArgs { named, tests } = parse_macro_input!(args as MultiPassFailArgs);
     let input = parse_macro_input!(input as ItemFn);
 
     let fn_ident = input.ident.clone();
     let test_name = named
         .map(|named| Ident::new(&named.value(), Span::call_site()))
-        .unwrap_or_else(|| Ident::new(&format!("{}_multitest_fail", fn_ident), Span::call_site()));
+        .unwrap_or_else(|| {
+            Ident::new(
+                &format!(
+                    "{}_multitest_{}",
+                    fn_ident,
+                    if pass { "pass" } else { "fail" }
+                ),
+                Span::call_site(),
+            )
+        });
 
     let args = tests.iter().map(|PassFailArgs { args, .. }| {
         quote! {
@@ -375,14 +348,19 @@ pub fn multi_fail(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let fn_ident = &[fn_ident];
 
+    let assert_type = if pass {
+        quote! { assert_eq }
+    } else {
+        quote! { assert_ne }
+    };
+
     TokenStream::from(quote! {
         #input
 
         #[test]
-        #[should_panic]
         fn #test_name() {
             #(
-                assert_eq!(#fn_ident(#args), #expecteds);
+                #assert_type!(#fn_ident(#args), #expecteds);
             )*
         }
     })
