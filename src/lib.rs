@@ -120,30 +120,33 @@ impl Parse for Args {
 
 #[derive(Clone)]
 struct PassFailArgs {
-    named: Option<syn::LitStr>,
     args: Vec<Expr>,
+    cmp_fn: Option<syn::LitStr>,
+    named: Option<syn::LitStr>,
     expected: Expr,
 }
 
 impl Parse for PassFailArgs {
     fn parse(input: ParseStream) -> Result<Self> {
-        let named = if input.peek(Ident) && input.peek2(Token![=]) {
+        let mut named = None;
+        let mut cmp_fn = None;
+
+        while input.peek(Ident) && input.peek2(Token![=]) {
             let ident = input.parse::<Ident>()?;
 
-            if &ident != "name" {
-                panic!("You must enclose this expression in parenthesis.");
+            match ident.to_string().as_str() {
+                "name" => {
+                    named = Some(parse_lit_str_with_comma(&input)?);
+                }
+                "cmp_fn" => {
+                    cmp_fn = Some(parse_lit_str_with_comma(&input)?);
+                }
+                _ => Err(syn::parse::Error::new(
+                    ident.span(),
+                    "Unknown option, if this is an actual expression, wrap it in parenthesis.",
+                ))?,
             }
-
-            input.parse::<Token![=]>()?;
-
-            let name = input.parse::<syn::LitStr>()?;
-
-            input.parse::<Token![,]>()?;
-
-            Some(name)
-        } else {
-            None
-        };
+        }
 
         let args = if input.peek(syn::token::Paren) {
             let inner_exprs;
@@ -162,8 +165,9 @@ impl Parse for PassFailArgs {
         let expected = input.parse::<Expr>()?;
 
         Ok(PassFailArgs {
-            named,
             args,
+            cmp_fn,
+            named,
             expected,
         })
     }
@@ -213,8 +217,9 @@ pub fn fail(args: TokenStream, input: TokenStream) -> TokenStream {
 
 fn single_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStream {
     let PassFailArgs {
-        named,
         args,
+        cmp_fn,
+        named,
         expected,
     } = parse_macro_input!(args as PassFailArgs);
     let input = parse_macro_input!(input as ItemFn);
@@ -233,10 +238,24 @@ fn single_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStr
         #(#args,)*
     };
 
-    let assert_type = if pass {
-        quote! { assert_eq }
-    } else {
-        quote! { assert_ne }
+    let assert = match cmp_fn {
+        Some(fn_) => {
+            let ident = Ident::new(&fn_.value(), Span::call_site());
+            quote! {
+                assert!(#ident(#fn_ident(#args), #expected));
+            }
+        }
+        None => {
+            if pass {
+                quote! {
+                    assert_eq!(#fn_ident(#args), #expected);
+                }
+            } else {
+                quote! {
+                    assert_ne!(#fn_ident(#args), #expected);
+                }
+            }
+        }
     };
 
     TokenStream::from(quote! {
@@ -244,42 +263,57 @@ fn single_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStr
 
         #[test]
         fn #test_name() {
-            #assert_type!(#fn_ident(#args), #expected);
+            #assert
         }
     })
 }
 
 struct MultiPassFailArgs {
+    cmp_fn: Option<syn::LitStr>,
     named: Option<syn::LitStr>,
     tests: Vec<PassFailArgs>,
 }
 
 impl Parse for MultiPassFailArgs {
     fn parse(input: ParseStream) -> Result<Self> {
-        let named = if input.peek(Ident) && input.peek2(Token![=]) {
+        let mut named = None;
+        let mut cmp_fn = None;
+
+        while input.peek(Ident) && input.peek2(Token![=]) {
             let ident = input.parse::<Ident>()?;
 
-            if &ident != "name" {
-                panic!("You must enclose this expression in parenthesis.");
+            match ident.to_string().as_str() {
+                "name" => {
+                    named = Some(parse_lit_str_with_comma(&input)?);
+                }
+                "cmp_fn" => {
+                    cmp_fn = Some(parse_lit_str_with_comma(&input)?);
+                }
+                _ => Err(syn::parse::Error::new(
+                    ident.span(),
+                    "Unknown option, if this is an actual expression, wrap it in parenthesis.",
+                ))?,
             }
-
-            input.parse::<Token![=]>()?;
-
-            let name = input.parse::<syn::LitStr>()?;
-
-            input.parse::<Token![,]>()?;
-
-            Some(name)
-        } else {
-            None
-        };
+        }
 
         let tests = Punctuated::<PassFailArgs, Token![,]>::parse_terminated(&input)?
             .into_iter()
             .collect();
 
-        Ok(MultiPassFailArgs { named, tests })
+        Ok(MultiPassFailArgs {
+            cmp_fn,
+            named,
+            tests,
+        })
     }
+}
+
+fn parse_lit_str_with_comma(input: ParseStream) -> Result<syn::LitStr> {
+    input.parse::<Token![=]>()?;
+    let name = input.parse::<syn::LitStr>()?;
+    input.parse::<Token![,]>()?;
+
+    Ok(name)
 }
 
 /// Generates multiple `assert_eq!`s that should all pass. Optionally named.
@@ -317,7 +351,11 @@ pub fn multi_fail(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 fn multi_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStream {
-    let MultiPassFailArgs { named, tests } = parse_macro_input!(args as MultiPassFailArgs);
+    let MultiPassFailArgs {
+        cmp_fn,
+        named,
+        tests,
+    } = parse_macro_input!(args as MultiPassFailArgs);
     let input = parse_macro_input!(input as ItemFn);
 
     let fn_ident = input.ident.clone();
@@ -348,10 +386,30 @@ fn multi_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStre
 
     let fn_ident = &[fn_ident];
 
-    let assert_type = if pass {
-        quote! { assert_eq }
-    } else {
-        quote! { assert_ne }
+    let assert = match cmp_fn {
+        Some(fn_) => {
+            let ident = &[Ident::new(&fn_.value(), Span::call_site())];
+            quote! {
+                #(
+                    assert!(#ident(#fn_ident(#args), #expecteds));
+                )*
+            }
+        }
+        None => {
+            if pass {
+                quote! {
+                    #(
+                        assert_eq!(#fn_ident(#args), #expecteds);
+                    )*
+                }
+            } else {
+                quote! {
+                    #(
+                        assert_ne!(#fn_ident(#args), #expecteds);
+                    )*
+                }
+            }
+        }
     };
 
     TokenStream::from(quote! {
@@ -359,9 +417,7 @@ fn multi_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStre
 
         #[test]
         fn #test_name() {
-            #(
-                #assert_type!(#fn_ident(#args), #expecteds);
-            )*
+            #assert
         }
     })
 }
