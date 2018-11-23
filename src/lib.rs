@@ -379,7 +379,7 @@ fn multi_codegen(args: TokenStream, input: TokenStream, pass: bool) -> TokenStre
     });
 
     let expecteds = tests.iter().map(|PassFailArgs { expected, .. }| {
-        quote!{
+        quote! {
             #expected
         }
     });
