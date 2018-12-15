@@ -52,4 +52,26 @@ fn minus(n: i32) -> i32 {
     n - 1
 }
 
+#[pass(name="sum", vec![1,2,3] => 6)]
+fn vec_sum(i: Vec<u32>) -> u32 {
+    i.iter().sum()
+}
+
+#[pass(name="calling_fns", Dummy::new() => 2)]
+fn extract_dummy(d: Dummy) -> i32 {
+    d.x
+}
+
+struct Dummy {
+    x: i32,
+}
+
+impl Dummy {
+    fn new() -> Dummy {
+        Dummy {
+            x: 2
+        }   
+    }
+}
+
 fn main() {}
